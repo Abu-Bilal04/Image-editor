@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZeeY Edits</title>
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Boxicons -->
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #f8f9fa;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+    canvas {
+      border: 2px solid #dee2e6;
+      background: #fff;
+      max-width: 100%;
+      cursor: crosshair;
+    }
+    .toolbar button {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    .filter-control {
+      margin-bottom: 10px;
+    }
+    /* Sticker Picker Animation */
+    .sticker-picker {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.8);
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      width: 350px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      text-align: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.4s ease;
+    }
+    .sticker-picker.show {
+      opacity: 1;
+      pointer-events: auto;
+      transform: translate(-50%, -50%) scale(1);
+    }
+    .sticker-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      justify-items: center;
+      margin-top: 10px;
+    }
+    .sticker-item {
+      font-size: 32px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .sticker-item:hover {
+      transform: scale(1.3);
+    }
+    /* ZeeY Edits Animation */
+    .zeey-popup {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: linear-gradient(135deg, #4caf50, #81c784);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 50px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      font-weight: bold;
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(-20px);
+      transition: all 0.6s ease;
+      z-index: 2000;
+    }
+    .zeey-popup.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .zeey-popup i {
+      font-size: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid position-relative">
+    <h3 class="text-center mb-4"><i class='bx bx-paint-roll'></i> Image Editor</h3>
+    <div class="row g-4">
+      
+      <!-- Canvas -->
+      <div class="col-md-8 text-center">
+        <canvas id="canvas" width="800" height="500"></canvas>
+      </div>
+
+      <!-- Controls -->
+      <div class="col-md-4">
+        <div class="card shadow-sm p-3">
+          <h5 class="text-center mb-3"><i class='bx bx-wrench'></i> Tools</h5>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold"><i class='bx bx-upload'></i> Upload Image</label>
+            <input type="file" id="upload" class="form-control" accept="image/*">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-bold"><i class='bx bx-palette'></i> Color</label>
+            <input type="color" id="colorPicker" class="form-control form-control-color w-100" value="#000000">
+          </div>
+
+          <div class="filter-control">
+            <label class="form-label fw-bold"><i class='bx bx-sun'></i> Brightness</label>
+            <input type="range" id="brightness" class="form-range" min="0" max="200" value="100">
+          </div>
+          <div class="filter-control">
+            <label class="form-label fw-bold"><i class='bx bx-adjust'></i> Contrast</label>
+            <input type="range" id="contrast" class="form-range" min="0" max="200" value="100">
+          </div>
+          <div class="filter-control">
+            <label class="form-label fw-bold"><i class='bx bx-droplet'></i> Blur</label>
+            <input type="range" id="blur" class="form-range" min="0" max="10" value="0">
+          </div>
+
+          <div class="toolbar mt-3">
+            <button id="drawBtn" class="btn btn-primary"><i class='bx bx-pencil'></i> Draw</button>
+            <button id="textBtn" class="btn btn-secondary"><i class='bx bx-font'></i> Text</button>
+            <button id="stickerBtn" class="btn btn-warning text-dark"><i class='bx bx-happy-beaming'></i> Stickers</button>
+            <button id="undoBtn" class="btn btn-outline-secondary"><i class='bx bx-undo'></i> Undo</button>
+            <button id="redoBtn" class="btn btn-outline-secondary"><i class='bx bx-redo'></i> Redo</button>
+            <button id="download" class="btn btn-success"><i class='bx bx-download'></i> Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sticker Picker -->
+  <div id="stickerPicker" class="sticker-picker">
+    <h5 class="fw-bold"><i class='bx bx-emoji'></i> Choose a Sticker</h5>
+    <div class="sticker-grid">
+      <div class="sticker-item">❤️</div>
+      <div class="sticker-item">🔥</div>
+      <div class="sticker-item">🌸</div>
+      <div class="sticker-item">⭐</div>
+      <div class="sticker-item">🎉</div>
+      <div class="sticker-item">😎</div>
+      <div class="sticker-item">😂</div>
+      <div class="sticker-item">🐱</div>
+      <div class="sticker-item">🍕</div>
+      <div class="sticker-item">🎵</div>
+    </div>
+    <button id="closeSticker" class="btn btn-danger mt-3"><i class='bx bx-x-circle'></i> Close</button>
+  </div>
+
+  <!-- ZeeY popup -->
+  <div id="zeeyPopup" class="zeey-popup">
+    <i class='bx bxs-brush'></i> ZeeY Edits
+  </div>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const upload = document.getElementById("upload");
+    const drawBtn = document.getElementById("drawBtn");
+    const textBtn = document.getElementById("textBtn");
+    const stickerBtn = document.getElementById("stickerBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const redoBtn = document.getElementById("redoBtn");
+    const download = document.getElementById("download");
+    const colorPicker = document.getElementById("colorPicker");
+    const stickerPicker = document.getElementById("stickerPicker");
+    const closeSticker = document.getElementById("closeSticker");
+    const stickerItems = document.querySelectorAll(".sticker-item");
+    const zeeyPopup = document.getElementById("zeeyPopup");
+    const brightness = document.getElementById("brightness");
+    const contrast = document.getElementById("contrast");
+    const blur = document.getElementById("blur");
+
+    let img = new Image();
+    let drawing = false;
+    let drawMode = false;
+    let textMode = false;
+    let stickerMode = false;
+    let selectedObject = null;
+    let dragOffset = { x: 0, y: 0 };
+    let currentColor = "#000000";
+    let currentSticker = null;
+    let history = [];
+    let historyStep = -1;
+    const objects = [];
+
+    function showZeeYPopup() {
+      zeeyPopup.classList.add("show");
+      setTimeout(() => zeeyPopup.classList.remove("show"), 3000);
+    }
+
+    function saveState() {
+      if (historyStep < history.length - 1) history = history.slice(0, historyStep + 1);
+      history.push(canvas.toDataURL());
+      historyStep++;
+    }
+
+    function restoreState(step) {
+      const imgRestore = new Image();
+      imgRestore.src = history[step];
+      imgRestore.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(imgRestore, 0, 0);
+      };
+    }
+
+    function applyFilters() {
+      ctx.filter = `brightness(${brightness.value}%) contrast(${contrast.value}%) blur(${blur.value}px)`;
+      drawObjects();
+    }
+
+    undoBtn.onclick = () => {
+      if (historyStep > 0) {
+        historyStep--;
+        restoreState(historyStep);
+      }
+    };
+
+    redoBtn.onclick = () => {
+      if (historyStep < history.length - 1) {
+        historyStep++;
+        restoreState(historyStep);
+      }
+    };
+
+    upload.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          drawObjects();
+          saveState();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    colorPicker.addEventListener("input", (e) => currentColor = e.target.value);
+
+    [brightness, contrast, blur].forEach(el => el.addEventListener("input", applyFilters));
+
+    drawBtn.onclick = () => {
+      drawMode = !drawMode;
+      textMode = stickerMode = false;
+      stickerPicker.classList.remove("show");
+      drawBtn.classList.toggle("btn-success", drawMode);
+    };
+
+    textBtn.onclick = () => {
+      textMode = !textMode;
+      drawMode = stickerMode = false;
+      stickerPicker.classList.remove("show");
+      textBtn.classList.toggle("btn-success", textMode);
+    };
+
+    stickerBtn.onclick = () => {
+      stickerMode = !stickerMode;
+      drawMode = textMode = false;
+      stickerPicker.classList.toggle("show", stickerMode);
+      if (stickerMode) showZeeYPopup();
+      stickerBtn.classList.toggle("btn-success", stickerMode);
+    };
+
+    closeSticker.onclick = () => {
+      stickerPicker.classList.remove("show");
+      stickerMode = false;
+    };
+
+    stickerItems.forEach(item => {
+      item.addEventListener("click", () => {
+        currentSticker = item.textContent;
+        alert("Sticker selected: " + currentSticker + ", click on image to place it.");
+        stickerPicker.classList.remove("show");
+      });
+    });
+
+    canvas.addEventListener("mousedown", (e) => {
+      const { offsetX, offsetY } = e;
+      if (drawMode) {
+        drawing = true;
+        ctx.beginPath();
+        ctx.moveTo(offsetX, offsetY);
+      } else if (textMode) {
+        const text = prompt("Enter text:");
+        if (text) {
+          objects.push({ type: "text", text, x: offsetX, y: offsetY, color: currentColor });
+          drawObjects();
+          saveState();
+        }
+      } else if (stickerMode && currentSticker) {
+        objects.push({ type: "sticker", emoji: currentSticker, x: offsetX, y: offsetY });
+        drawObjects();
+        saveState();
+        currentSticker = null;
+      }
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
+      if (drawing && drawMode) {
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.strokeStyle = currentColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    });
+
+    canvas.addEventListener("mouseup", () => {
+      if (drawing) {
+        drawing = false;
+        saveState();
+      }
+    });
+
+    function drawObjects() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.filter = `brightness(${brightness.value}%) contrast(${contrast.value}%) blur(${blur.value}px)`;
+      ctx.drawImage(img, 0, 0);
+      for (const o of objects) {
+        if (o.type === "text") {
+          ctx.font = "24px Arial";
+          ctx.fillStyle = o.color;
+          ctx.fillText(o.text, o.x, o.y);
+        } else if (o.type === "sticker") {
+          ctx.font = "48px serif";
+          ctx.fillText(o.emoji, o.x - 20, o.y + 20);
+        }
+      }
+    }
+
+    download.onclick = () => {
+      const link = document.createElement("a");
+      link.download = "edited-image.png";
+      link.href = canvas.toDataURL();
+      link.click();
+    };
+  </script>
+</body>
+</html>
