@@ -29,7 +29,6 @@
     .filter-control {
       margin-bottom: 10px;
     }
-    /* Sticker Picker Animation */
     .sticker-picker {
       position: absolute;
       top: 50%;
@@ -66,7 +65,6 @@
     .sticker-item:hover {
       transform: scale(1.3);
     }
-    /* ZeeY Edits Animation */
     .zeey-popup {
       position: fixed;
       top: 20px;
@@ -137,6 +135,7 @@
             <button id="drawBtn" class="btn btn-primary"><i class='bx bx-pencil'></i> Draw</button>
             <button id="textBtn" class="btn btn-secondary"><i class='bx bx-font'></i> Text</button>
             <button id="stickerBtn" class="btn btn-warning text-dark"><i class='bx bx-happy-beaming'></i> Stickers</button>
+            <button id="cropBtn" class="btn btn-info text-white"><i class='bx bx-crop'></i> Crop</button>
             <button id="undoBtn" class="btn btn-outline-secondary"><i class='bx bx-undo'></i> Undo</button>
             <button id="redoBtn" class="btn btn-outline-secondary"><i class='bx bx-redo'></i> Redo</button>
             <button id="download" class="btn btn-success"><i class='bx bx-download'></i> Save</button>
@@ -179,6 +178,7 @@
     const drawBtn = document.getElementById("drawBtn");
     const textBtn = document.getElementById("textBtn");
     const stickerBtn = document.getElementById("stickerBtn");
+    const cropBtn = document.getElementById("cropBtn");
     const undoBtn = document.getElementById("undoBtn");
     const redoBtn = document.getElementById("redoBtn");
     const download = document.getElementById("download");
@@ -196,10 +196,12 @@
     let drawMode = false;
     let textMode = false;
     let stickerMode = false;
+    let cropMode = false;
     let selectedObject = null;
     let dragOffset = { x: 0, y: 0 };
     let currentColor = "#000000";
     let currentSticker = null;
+    let startCrop = null;
     let history = [];
     let historyStep = -1;
     const objects = [];
@@ -235,7 +237,6 @@
         restoreState(historyStep);
       }
     };
-
     redoBtn.onclick = () => {
       if (historyStep < history.length - 1) {
         historyStep++;
@@ -259,30 +260,26 @@
     });
 
     colorPicker.addEventListener("input", (e) => currentColor = e.target.value);
-
     [brightness, contrast, blur].forEach(el => el.addEventListener("input", applyFilters));
 
-    drawBtn.onclick = () => {
-      drawMode = !drawMode;
-      textMode = stickerMode = false;
-      stickerPicker.classList.remove("show");
-      drawBtn.classList.toggle("btn-success", drawMode);
-    };
+    // Mode toggles
+    drawBtn.onclick = () => toggleMode("draw");
+    textBtn.onclick = () => toggleMode("text");
+    stickerBtn.onclick = () => toggleMode("sticker");
+    cropBtn.onclick = () => toggleMode("crop");
 
-    textBtn.onclick = () => {
-      textMode = !textMode;
-      drawMode = stickerMode = false;
-      stickerPicker.classList.remove("show");
-      textBtn.classList.toggle("btn-success", textMode);
-    };
-
-    stickerBtn.onclick = () => {
-      stickerMode = !stickerMode;
-      drawMode = textMode = false;
+    function toggleMode(mode) {
+      drawMode = mode === "draw";
+      textMode = mode === "text";
+      stickerMode = mode === "sticker";
+      cropMode = mode === "crop";
+      [drawBtn, textBtn, stickerBtn, cropBtn].forEach(btn => btn.classList.remove("btn-success"));
+      if (mode === "draw") drawBtn.classList.add("btn-success");
+      if (mode === "text") textBtn.classList.add("btn-success");
+      if (mode === "sticker") stickerBtn.classList.add("btn-success");
+      if (mode === "crop") cropBtn.classList.add("btn-success");
       stickerPicker.classList.toggle("show", stickerMode);
-      if (stickerMode) showZeeYPopup();
-      stickerBtn.classList.toggle("btn-success", stickerMode);
-    };
+    }
 
     closeSticker.onclick = () => {
       stickerPicker.classList.remove("show");
@@ -297,6 +294,26 @@
       });
     });
 
+    function addText(x, y) {
+      const text = prompt("Enter text:");
+      if (text) {
+        objects.push({ type: "text", text, x, y, color: currentColor });
+        drawObjects();
+        saveState();
+      }
+    }
+
+    function getObjectAt(x, y) {
+      for (let i = objects.length - 1; i >= 0; i--) {
+        const o = objects[i];
+        ctx.font = o.type === "text" ? "24px Arial" : "48px serif";
+        const width = ctx.measureText(o.type === "text" ? o.text : o.emoji).width;
+        const height = o.type === "text" ? 24 : 48;
+        if (x >= o.x && x <= o.x + width && y <= o.y && y >= o.y - height) return o;
+      }
+      return null;
+    }
+
     canvas.addEventListener("mousedown", (e) => {
       const { offsetX, offsetY } = e;
       if (drawMode) {
@@ -304,17 +321,21 @@
         ctx.beginPath();
         ctx.moveTo(offsetX, offsetY);
       } else if (textMode) {
-        const text = prompt("Enter text:");
-        if (text) {
-          objects.push({ type: "text", text, x: offsetX, y: offsetY, color: currentColor });
-          drawObjects();
-          saveState();
-        }
+        addText(offsetX, offsetY);
       } else if (stickerMode && currentSticker) {
         objects.push({ type: "sticker", emoji: currentSticker, x: offsetX, y: offsetY });
         drawObjects();
         saveState();
         currentSticker = null;
+      } else if (cropMode) {
+        startCrop = { x: offsetX, y: offsetY };
+      } else {
+        const clicked = getObjectAt(offsetX, offsetY);
+        if (clicked) {
+          selectedObject = clicked;
+          dragOffset.x = offsetX - clicked.x;
+          dragOffset.y = offsetY - clicked.y;
+        }
       }
     });
 
@@ -324,12 +345,41 @@
         ctx.strokeStyle = currentColor;
         ctx.lineWidth = 2;
         ctx.stroke();
+      } else if (selectedObject) {
+        selectedObject.x = e.offsetX - dragOffset.x;
+        selectedObject.y = e.offsetY - dragOffset.y;
+        drawObjects();
+      } else if (cropMode && startCrop) {
+        drawObjects();
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6]);
+        ctx.strokeRect(startCrop.x, startCrop.y, e.offsetX - startCrop.x, e.offsetY - startCrop.y);
+        ctx.setLineDash([]);
       }
     });
 
-    canvas.addEventListener("mouseup", () => {
+    canvas.addEventListener("mouseup", (e) => {
       if (drawing) {
         drawing = false;
+        saveState();
+      }
+      if (selectedObject) {
+        selectedObject = null;
+        saveState();
+      }
+      if (cropMode && startCrop) {
+        const { x, y } = startCrop;
+        const w = e.offsetX - x;
+        const h = e.offsetY - y;
+        const cropped = ctx.getImageData(x, y, w, h);
+        canvas.width = Math.abs(w);
+        canvas.height = Math.abs(h);
+        ctx.putImageData(cropped, 0, 0);
+        img.src = canvas.toDataURL();
+        startCrop = null;
+        cropMode = false;
+        cropBtn.classList.remove("btn-success");
         saveState();
       }
     });
@@ -337,7 +387,7 @@
     function drawObjects() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.filter = `brightness(${brightness.value}%) contrast(${contrast.value}%) blur(${blur.value}px)`;
-      ctx.drawImage(img, 0, 0);
+      if (img.src) ctx.drawImage(img, 0, 0);
       for (const o of objects) {
         if (o.type === "text") {
           ctx.font = "24px Arial";
@@ -345,7 +395,7 @@
           ctx.fillText(o.text, o.x, o.y);
         } else if (o.type === "sticker") {
           ctx.font = "48px serif";
-          ctx.fillText(o.emoji, o.x - 20, o.y + 20);
+          ctx.fillText(o.emoji, o.x, o.y);
         }
       }
     }
